@@ -2,6 +2,8 @@
 
 Bash scripts to start and stop [`llama-server`](https://github.com/ggml-org/llama.cpp) from [llama.cpp](https://github.com/ggml-org/llama.cpp) for [Qwen3.6-35B-A3B](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF) GGUF weights.
 
+Designed for **NVIDIA DGX Spark** and other rigs with **96–128 GB VRAM**, where the default Q8_K_XL quant and 256K context window can run comfortably.
+
 It handles binary detection, prevents duplicate instances, waits for the server to become healthy, and keeps everything running in the background even after you close the terminal.
 
 ## Features
@@ -20,7 +22,7 @@ It handles binary detection, prevents duplicate instances, waits for the server 
 - `bash`
 - `curl`
 - A compiled `llama.cpp` build containing the `llama-server` binary
-- Sufficient RAM / VRAM for your model and context size (~40 GB+ for the default Q8_K_XL quant)
+- **96–128 GB VRAM** (tested on DGX Spark; the default Q8_K_XL model + 256K context needs well beyond the ~40 GB model weight size alone)
 
 ## Model Files
 
