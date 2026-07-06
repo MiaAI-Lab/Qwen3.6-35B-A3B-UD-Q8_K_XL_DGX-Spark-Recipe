@@ -5,6 +5,8 @@ set -euo pipefail
 GGUF_FILE="${GGUF_FILE:-Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf}"
 MODEL="${MODEL:-${GGUF_FILE}}"
 MMPROJ_FILE="${MMPROJ_FILE:-mmproj-BF16.gguf}"
+HF_REPO_ID="${HF_REPO_ID:-unsloth/Qwen3.6-35B-A3B-MTP-GGUF}"
+AUTO_DOWNLOAD="${AUTO_DOWNLOAD:-1}"
 LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-}"
 LLAMA_SERVER_PATHS="${LLAMA_SERVER_PATHS:-}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +23,100 @@ fi
 if [[ "${MMPROJ_FILE}" != /* ]]; then
   MMPROJ_FILE="${SCRIPT_DIR}/${MMPROJ_FILE}"
 fi
+
+download_hf_files() {
+  local dest_dir="$1"
+  shift
+  local -a files=("$@")
+  local -a hf_token_args=()
+
+  mkdir -p "${dest_dir}"
+
+  if [[ -n "${HF_TOKEN:-}" ]]; then
+    hf_token_args=(--token "${HF_TOKEN}")
+  fi
+
+  if command -v hf >/dev/null 2>&1; then
+    hf download "${HF_REPO_ID}" "${files[@]}" --local-dir "${dest_dir}" "${hf_token_args[@]}"
+    return
+  fi
+
+  if command -v huggingface-cli >/dev/null 2>&1; then
+    huggingface-cli download "${HF_REPO_ID}" "${files[@]}" --local-dir "${dest_dir}" "${hf_token_args[@]}"
+    return
+  fi
+
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import huggingface_hub" >/dev/null 2>&1; then
+    HF_REPO_ID="${HF_REPO_ID}" HF_TOKEN="${HF_TOKEN:-}" DEST_DIR="${dest_dir}" \
+      python3 - "${files[@]}" <<'PY'
+import os
+import sys
+
+from huggingface_hub import hf_hub_download
+
+repo = os.environ["HF_REPO_ID"]
+dest = os.environ["DEST_DIR"]
+token = os.environ.get("HF_TOKEN") or None
+
+for filename in sys.argv[1:]:
+    print(f"Downloading {filename}...")
+    hf_hub_download(
+        repo_id=repo,
+        filename=filename,
+        local_dir=dest,
+        local_dir_use_symlinks=False,
+        token=token,
+    )
+    print(f"Saved {filename} to {dest}")
+PY
+    return
+  fi
+
+  echo "error: missing model files and no Hugging Face download tool found" >&2
+  echo "Install one of: pip install -U huggingface_hub" >&2
+  echo "Or download manually from https://huggingface.co/${HF_REPO_ID}" >&2
+  exit 1
+}
+
+ensure_model_files() {
+  local -a missing=()
+
+  if [[ ! -f "${MODEL}" ]]; then
+    missing+=("$(basename "${MODEL}")")
+  fi
+  if [[ ! -f "${MMPROJ_FILE}" ]]; then
+    missing+=("$(basename "${MMPROJ_FILE}")")
+  fi
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  if [[ "${AUTO_DOWNLOAD}" == "0" ]]; then
+    echo "error: missing model files: ${missing[*]}" >&2
+    echo "Download from https://huggingface.co/${HF_REPO_ID} or set AUTO_DOWNLOAD=1" >&2
+    exit 1
+  fi
+
+  echo "Missing model files: ${missing[*]}"
+  echo "Downloading from ${HF_REPO_ID} to ${SCRIPT_DIR}..."
+  echo "This may take a while (~40 GB total for the default files)..."
+
+  download_hf_files "${SCRIPT_DIR}" "${missing[@]}"
+
+  if [[ ! -f "${MODEL}" ]]; then
+    echo "error: model file still missing after download: ${MODEL}" >&2
+    exit 1
+  fi
+  if [[ ! -f "${MMPROJ_FILE}" ]]; then
+    echo "error: mmproj file still missing after download: ${MMPROJ_FILE}" >&2
+    exit 1
+  fi
+
+  echo "Model files ready."
+}
+
+ensure_model_files
 
 if [[ -z "${LLAMA_SERVER_BIN}" ]]; then
   if command -v llama-server >/dev/null 2>&1; then
