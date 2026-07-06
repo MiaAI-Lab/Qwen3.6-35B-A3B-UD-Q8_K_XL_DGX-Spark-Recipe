@@ -124,6 +124,64 @@ ensure_model_files() {
   echo "Model files ready in ${SCRIPT_DIR}."
 }
 
+server_load_status() {
+  local tail_log=""
+
+  [[ -f "${LOG_FILE}" ]] || {
+    echo "starting"
+    return
+  }
+
+  tail_log="$(tail -n 80 "${LOG_FILE}" 2>/dev/null || true)"
+
+  if grep -q "server is listening" <<<"${tail_log}"; then
+    echo "listening"
+  elif grep -q "model loaded" <<<"${tail_log}"; then
+    echo "model loaded"
+  elif grep -q "warming up" <<<"${tail_log}"; then
+    echo "warming up"
+  elif grep -q "speculative decoding context initialized" <<<"${tail_log}"; then
+    echo "speculative decode ready"
+  elif grep -q "loaded multimodal model" <<<"${tail_log}"; then
+    echo "vision model loaded"
+  elif grep -q "load_model: loading model" <<<"${tail_log}"; then
+    echo "loading weights"
+  else
+    echo "starting"
+  fi
+}
+
+wait_for_server_ready() {
+  local server_pid="$1"
+  local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local i=0 elapsed=0 interval=2 status spin_char
+
+  while ! curl -fsS "${READY_URL}" >/dev/null 2>&1; do
+    if ! kill -0 "${server_pid}" 2>/dev/null; then
+      printf '\n' >&2
+      echo "llama-server exited before becoming ready"
+      tail -n 200 "${LOG_FILE}" || true
+      rm -f "${PID_FILE}"
+      exit 1
+    fi
+
+    status="$(server_load_status)"
+    spin_char="${spin:$((i % ${#spin})):1}"
+    i=$((i + 1))
+    printf '\r\033[Kllama-server %s  %02d:%02d  %s' \
+      "${spin_char}" $((elapsed / 60)) $((elapsed % 60)) "${status}" >&2
+    sleep "${interval}"
+    elapsed=$((elapsed + interval))
+  done
+
+  printf '\r\033[K' >&2
+  if [[ "${elapsed}" -gt 0 ]]; then
+    echo "llama-server ready in $((elapsed / 60))m $((elapsed % 60))s"
+  else
+    echo "llama-server ready"
+  fi
+}
+
 command -v curl >/dev/null 2>&1 || {
   echo "curl is not on PATH"
   exit 1
@@ -218,18 +276,5 @@ server_pid=$!
 echo "${server_pid}" >"${PID_FILE}"
 echo "Spawned llama-server (pid ${server_pid})"
 
-echo "Waiting for HTTP readiness at ${READY_URL}"
-until curl -fsS "${READY_URL}" >/dev/null 2>&1; do
-  if ! kill -0 "${server_pid}" 2>/dev/null; then
-    echo "llama-server exited before becoming ready"
-    tail -n 200 "${LOG_FILE}" || true
-    rm -f "${PID_FILE}"
-    exit 1
-  fi
-  echo "  still starting..."
-  sleep 5
-done
-
-echo "llama-server is ready"
+wait_for_server_ready "${server_pid}"
 echo "OpenAI base URL: http://${HOST}:${PORT}/v1"
-echo "llama-server is ready and responding; shell is now free."

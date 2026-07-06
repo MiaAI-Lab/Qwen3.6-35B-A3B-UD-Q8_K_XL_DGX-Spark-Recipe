@@ -270,8 +270,8 @@ GGUF_FILE=Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf ./start.sh
 1. Checks if a healthy instance is already running and exits early if so
 2. Cleans up stale PID files / processes
 3. Launches `llama-server` in the background with `nohup`
-4. Polls `http://127.0.0.1:8888/health` every 5 seconds until ready
-5. Prints the ready message + OpenAI base URL
+4. Polls `/health` with a single-line spinner showing elapsed time and load stage (from the log)
+5. Prints ready time + OpenAI base URL
 
 **stop.sh** does the following:
 
