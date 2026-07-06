@@ -1,0 +1,19 @@
+# Model weights (download from Hugging Face)
+*.gguf
+
+# Runtime artifacts
+.llama-server.log
+.llama-server.pid
+
+# Caches
+.cache/
+
+# Optional local binary symlink
+llama-server
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
