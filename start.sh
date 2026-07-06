@@ -89,6 +89,9 @@ ensure_model_files() {
   fi
 
   if [[ ${#missing[@]} -eq 0 ]]; then
+    echo "Model files already present — skipping download."
+    echo "  model:  ${MODEL}"
+    echo "  mmproj: ${MMPROJ_FILE}"
     return 0
   fi
 

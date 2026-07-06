@@ -77,6 +77,8 @@ This repo does **not** include the model weights. `start.sh` will **automaticall
 
 A [Hugging Face access token](https://huggingface.co/settings/tokens) is **recommended** before the first run — set `HF_TOKEN_KEY` at the top of `start.sh` or export `HF_TOKEN` in your shell. This avoids rate limits on large (~40 GB) downloads.
 
+On every run, `start.sh` checks whether both `.gguf` files already exist in the script directory. If they do, the download step is **skipped entirely**. If only one is missing, only that file is downloaded.
+
 You can also download them manually and place them in the same directory as `start.sh`:
 
 | File | Size | Purpose |
