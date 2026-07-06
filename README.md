@@ -72,7 +72,7 @@ The start script searches, in order: `PATH` → `LLAMA_SERVER_PATHS` → `./buil
 
 ## Model Files
 
-This repo does **not** include the model weights. `start.sh` will **automatically download** any missing files from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF) on first run (requires `huggingface-cli`, `hf`, or `python3` + `huggingface_hub`).
+This repo does **not** include the model weights. `start.sh` will **automatically download** any missing files from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF) on first run, writing them **directly into the script directory** (not the Hugging Face cache). Uses `curl` with resume support for interrupted downloads.
 
 You can also download them manually and place them in the same directory as `start.sh`:
 
@@ -100,14 +100,8 @@ Or download manually from the [Hugging Face repo](https://huggingface.co/unsloth
 # 1. Make the scripts executable
 chmod +x start.sh stop.sh
 
-# 2. Start the server (downloads model files automatically if missing)
+# 2. Start the server (downloads model files into this directory if missing)
 ./start.sh
-```
-
-To pre-install the Hugging Face downloader:
-
-```bash
-pip install -U huggingface_hub
 ```
 
 To skip auto-download and fail fast if files are missing:
@@ -187,6 +181,7 @@ MODEL=llama-3.1-70b-Q4_K_M.gguf ./start.sh
 | `LLAMA_SERVER_BIN` | auto-detected | Path to `llama-server` binary |
 | `LLAMA_SERVER_PATHS` | built-in list | Colon-separated extra search paths |
 | `HF_REPO_ID` | `unsloth/Qwen3.6-35B-A3B-MTP-GGUF` | Hugging Face repo used for auto-download |
+| `HF_REVISION` | `main` | Branch, tag, or commit for download URL |
 | `AUTO_DOWNLOAD` | `1` | Download missing `.gguf` files on start (`0` to disable) |
 | `HF_TOKEN` | unset | Optional Hugging Face token for gated models |
 
@@ -317,11 +312,7 @@ Common causes: missing model files, out of memory, unsupported flags in your lla
 
 **"model file not found" or "mmproj not found"**
 
-`start.sh` should auto-download on the next run. If it fails, install the downloader (`pip install -U huggingface_hub`) or download manually from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF). Set `GGUF_FILE` / `MMPROJ_FILE` if using custom paths.
-
-**"missing model files and no Hugging Face download tool found"**
-
-Install a downloader: `pip install -U huggingface_hub`, then re-run `./start.sh`.
+`start.sh` should auto-download on the next run via `curl`. Partial downloads resume from `*.part` files. If it fails, download manually from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF). Set `GGUF_FILE` / `MMPROJ_FILE` if using custom paths.
 
 **Port already in use**
 

@@ -1,5 +1,6 @@
 # Model weights (download from Hugging Face)
 *.gguf
+*.gguf.part
 
 # Runtime artifacts
 .llama-server.log
