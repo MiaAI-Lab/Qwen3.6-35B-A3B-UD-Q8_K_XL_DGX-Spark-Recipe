@@ -48,6 +48,7 @@ The default recipe targets a single-GPU setup. On DGX Spark (NVIDIA GB10, ~128 G
 | **CUDA build of llama.cpp** | `llama-server` compiled with CUDA for your architecture (e.g. Blackwell sm_121 on Spark, or sm_80+ on datacenter GPUs) |
 | **llama.cpp version** | Recent `master` or nightly — must support `--mmproj`, `--spec-type draft-mtp`, and `--chat-template-kwargs` |
 | **Tools** | `bash`, `curl` |
+| **Hugging Face token** | **Recommended** — set `HF_TOKEN_KEY` in `start.sh` or `export HF_TOKEN` before running; improves download speed and avoids rate limits |
 | **Disk** | ~40 GB free for model downloads + space for `.llama-server.log` |
 
 ### Building llama.cpp
@@ -73,6 +74,8 @@ The start script searches, in order: `PATH` → `LLAMA_SERVER_PATHS` → `./buil
 ## Model Files
 
 This repo does **not** include the model weights. `start.sh` will **automatically download** any missing files from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF) on first run, writing them **directly into the script directory** (not the Hugging Face cache). Uses `curl` with resume support for interrupted downloads.
+
+A [Hugging Face access token](https://huggingface.co/settings/tokens) is **recommended** before the first run — set `HF_TOKEN_KEY` at the top of `start.sh` or export `HF_TOKEN` in your shell. This avoids rate limits on large (~40 GB) downloads.
 
 You can also download them manually and place them in the same directory as `start.sh`:
 
@@ -100,7 +103,12 @@ Or download manually from the [Hugging Face repo](https://huggingface.co/unsloth
 # 1. Make the scripts executable
 chmod +x start.sh stop.sh
 
-# 2. Start the server (downloads model files into this directory if missing)
+# 2. Set your Hugging Face token (recommended)
+#    Option A — edit start.sh:  HF_TOKEN_KEY="hf_xxxxxxxx"
+#    Option B — export in shell:
+export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# 3. Start the server (downloads model files into this directory if missing)
 ./start.sh
 ```
 
@@ -183,7 +191,8 @@ MODEL=llama-3.1-70b-Q4_K_M.gguf ./start.sh
 | `HF_REPO_ID` | `unsloth/Qwen3.6-35B-A3B-MTP-GGUF` | Hugging Face repo used for auto-download |
 | `HF_REVISION` | `main` | Branch, tag, or commit for download URL |
 | `AUTO_DOWNLOAD` | `1` | Download missing `.gguf` files on start (`0` to disable) |
-| `HF_TOKEN` | unset | Optional Hugging Face token for gated models |
+| `HF_TOKEN_KEY` | `""` (in `start.sh`) | Paste your Hugging Face token here (recommended) |
+| `HF_TOKEN` | falls back to `HF_TOKEN_KEY` | Env override; export before running takes precedence |
 
 ### Other Settings (edit `start.sh`)
 
@@ -312,7 +321,11 @@ Common causes: missing model files, out of memory, unsupported flags in your lla
 
 **"model file not found" or "mmproj not found"**
 
-`start.sh` should auto-download on the next run via `curl`. Partial downloads resume from `*.part` files. If it fails, download manually from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF). Set `GGUF_FILE` / `MMPROJ_FILE` if using custom paths.
+`start.sh` should auto-download on the next run via `curl`. Partial downloads resume from `*.part` files. If it fails, set `HF_TOKEN_KEY` in `start.sh` (rate limits are common without a token) or download manually from [unsloth/Qwen3.6-35B-A3B-MTP-GGUF](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF). Set `GGUF_FILE` / `MMPROJ_FILE` if using custom paths.
+
+**Slow or failing model downloads**
+
+Set a Hugging Face token before running: edit `HF_TOKEN_KEY="hf_..."` at the top of `start.sh`, or `export HF_TOKEN="hf_..."`. Create a Read token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
 **Port already in use**
 

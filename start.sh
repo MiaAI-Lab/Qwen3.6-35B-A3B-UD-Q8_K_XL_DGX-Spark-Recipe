@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ---------------------------------------------------------------------------
+# Hugging Face access token (recommended — set before first run)
+# Create at https://huggingface.co/settings/tokens (Read permission is enough)
+# Paste your token below, or export HF_TOKEN="hf_..." before running ./start.sh
+# ---------------------------------------------------------------------------
+HF_TOKEN_KEY=""
+HF_TOKEN="${HF_TOKEN:-${HF_TOKEN_KEY}}"
+
 # Set this to the GGUF file to serve. Relative paths are resolved from this directory.
 GGUF_FILE="${GGUF_FILE:-Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf}"
 MODEL="${MODEL:-${GGUF_FILE}}"
@@ -93,6 +101,11 @@ ensure_model_files() {
   echo "Missing model files: ${missing[*]}"
   echo "Downloading from ${HF_REPO_ID} to ${SCRIPT_DIR}..."
   echo "This may take a while (~40 GB total for the default files)..."
+
+  if [[ -z "${HF_TOKEN}" ]]; then
+    echo "warning: HF_TOKEN is not set — downloads may be slow or rate-limited."
+    echo "         Set HF_TOKEN_KEY at the top of start.sh or export HF_TOKEN before running."
+  fi
 
   download_hf_files "${SCRIPT_DIR}" "${missing[@]}"
 
