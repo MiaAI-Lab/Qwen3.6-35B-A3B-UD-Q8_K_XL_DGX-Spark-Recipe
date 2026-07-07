@@ -9,6 +9,9 @@
 # Caches
 .cache/
 
+# Local Docker Compose configuration
+.env
+
 # Optional local binary symlink
 llama-server
 

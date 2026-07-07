@@ -1,0 +1,26 @@
+services:
+  qwen-spark:
+    build:
+      context: .
+      args:
+        LLAMA_CPP_REF: ${LLAMA_CPP_REF:-master}
+        CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES:-121}
+    image: qwen36-spark-recipe:latest
+    container_name: qwen36-spark
+    ports:
+      - "${PORT:-8888}:8888"
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HOME: /root/.cache/huggingface
+      AUTO_DOWNLOAD: ${AUTO_DOWNLOAD:-1}
+      USE_HF_DOWNLOAD: ${USE_HF_DOWNLOAD:-1}
+      GGUF_FILE: ${GGUF_FILE:-/root/.cache/huggingface/hub/Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf}
+      MMPROJ_FILE: ${MMPROJ_FILE:-/root/.cache/huggingface/hub/mmproj-BF16.gguf}
+      HF_REPO_ID: ${HF_REPO_ID:-unsloth/Qwen3.6-35B-A3B-MTP-GGUF}
+      HF_REVISION: ${HF_REVISION:-main}
+    volumes:
+      - .:/app
+      - ${HF_CACHE_DIR:-${HOME}/.cache/huggingface}:/root/.cache/huggingface
+    gpus: all
+    ipc: host
+    restart: unless-stopped

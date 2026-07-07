@@ -8,6 +8,9 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 HF_TOKEN_KEY=""
 HF_TOKEN="${HF_TOKEN:-${HF_TOKEN_KEY}}"
+if [[ -n "${HF_TOKEN}" ]]; then
+  export HF_TOKEN
+fi
 
 # Set this to the GGUF file to serve. Relative paths are resolved from this directory.
 GGUF_FILE="${GGUF_FILE:-Qwen3.6-35B-A3B-UD-Q8_K_XL.gguf}"
@@ -16,6 +19,7 @@ MMPROJ_FILE="${MMPROJ_FILE:-mmproj-BF16.gguf}"
 HF_REPO_ID="${HF_REPO_ID:-unsloth/Qwen3.6-35B-A3B-MTP-GGUF}"
 HF_REVISION="${HF_REVISION:-main}"
 AUTO_DOWNLOAD="${AUTO_DOWNLOAD:-1}"
+USE_HF_DOWNLOAD="${USE_HF_DOWNLOAD:-0}"
 LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-}"
 LLAMA_SERVER_PATHS="${LLAMA_SERVER_PATHS:-}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,62 +37,57 @@ if [[ "${MMPROJ_FILE}" != /* ]]; then
   MMPROJ_FILE="${SCRIPT_DIR}/${MMPROJ_FILE}"
 fi
 
-download_hf_file() {
-  local dest_dir="$1"
-  local filename="$2"
-  local dest="${dest_dir}/${filename}"
-  local tmp="${dest}.part"
-  local url="https://huggingface.co/${HF_REPO_ID}/resolve/${HF_REVISION}/${filename}"
-  local -a curl_args=(-fL --retry 3 --retry-delay 5)
+hf_download_file() {
+  local current_path="$1"
+  local filename
+  local hf_output
+  local resolved_path
 
-  if [[ -f "${dest}" ]]; then
+  if [[ "${USE_HF_DOWNLOAD}" != "1" && -f "${current_path}" ]]; then
+    echo "${current_path}"
     return 0
   fi
 
-  mkdir -p "${dest_dir}"
-
-  if [[ -n "${HF_TOKEN:-}" ]]; then
-    curl_args+=(-H "Authorization: Bearer ${HF_TOKEN}")
-  fi
-
-  if [[ -f "${tmp}" ]]; then
-    echo "Resuming partial download for ${filename}..."
-    curl_args+=(-C -)
-  else
-    echo "Downloading ${filename} to ${dest}..."
-  fi
-
-  curl "${curl_args[@]}" -o "${tmp}" "${url}"
-  mv -f "${tmp}" "${dest}"
-  echo "Saved ${dest}"
-}
-
-download_hf_files() {
-  local dest_dir="$1"
-  shift
-  local -a files=("$@")
-
-  command -v curl >/dev/null 2>&1 || {
-    echo "error: curl is required to download model files" >&2
+  command -v hf >/dev/null 2>&1 || {
+    echo "error: hf CLI is required to download model files" >&2
+    echo "Install with: pip install -U 'huggingface_hub[cli]'" >&2
     exit 1
   }
 
-  for filename in "${files[@]}"; do
-    download_hf_file "${dest_dir}" "${filename}"
-  done
+  filename="$(basename "${current_path}")"
+  echo "Downloading ${filename} from ${HF_REPO_ID} with hf download..." >&2
+  hf_output="$(hf download "${HF_REPO_ID}" "${filename}" --revision "${HF_REVISION}")"
+  resolved_path="${hf_output}"
+
+  if [[ ! -f "${resolved_path}" ]]; then
+    while IFS= read -r line; do
+      line="${line#  path: }"
+      if [[ -f "${line}" ]]; then
+        resolved_path="${line}"
+        break
+      fi
+    done <<<"${hf_output}"
+  fi
+
+  if [[ ! -f "${resolved_path}" ]]; then
+    echo "error: hf download did not return a file path for ${filename}: ${hf_output}" >&2
+    exit 1
+  fi
+
+  echo "${resolved_path}"
 }
 
 ensure_model_files() {
-  local -a missing=()
+  local -a missing_paths=()
 
-  if [[ ! -f "${MODEL}" ]]; then
-    missing+=("$(basename "${MODEL}")")
+  if [[ "${USE_HF_DOWNLOAD}" == "1" || ! -f "${MODEL}" ]]; then
+    missing_paths+=("${MODEL}")
   fi
-  if [[ ! -f "${MMPROJ_FILE}" ]]; then
-    missing+=("$(basename "${MMPROJ_FILE}")")
+  if [[ "${USE_HF_DOWNLOAD}" == "1" || ! -f "${MMPROJ_FILE}" ]]; then
+    missing_paths+=("${MMPROJ_FILE}")
   fi
 
-  if [[ ${#missing[@]} -eq 0 ]]; then
+  if [[ ${#missing_paths[@]} -eq 0 ]]; then
     echo "Model files already present — skipping download."
     echo "  model:  ${MODEL}"
     echo "  mmproj: ${MMPROJ_FILE}"
@@ -96,13 +95,13 @@ ensure_model_files() {
   fi
 
   if [[ "${AUTO_DOWNLOAD}" == "0" ]]; then
-    echo "error: missing model files: ${missing[*]}" >&2
+    echo "error: missing model files: ${missing_paths[*]}" >&2
     echo "Download from https://huggingface.co/${HF_REPO_ID} or set AUTO_DOWNLOAD=1" >&2
     exit 1
   fi
 
-  echo "Missing model files: ${missing[*]}"
-  echo "Downloading from ${HF_REPO_ID} to ${SCRIPT_DIR}..."
+  echo "Missing model files: ${missing_paths[*]}"
+  echo "Downloading from ${HF_REPO_ID} into the Hugging Face cache..."
   echo "This may take a while (~40 GB total for the default files)..."
 
   if [[ -z "${HF_TOKEN}" ]]; then
@@ -110,7 +109,8 @@ ensure_model_files() {
     echo "         Set HF_TOKEN_KEY at the top of start.sh or export HF_TOKEN before running."
   fi
 
-  download_hf_files "${SCRIPT_DIR}" "${missing[@]}"
+  MODEL="$(hf_download_file "${MODEL}")"
+  MMPROJ_FILE="$(hf_download_file "${MMPROJ_FILE}")"
 
   if [[ ! -f "${MODEL}" ]]; then
     echo "error: model file still missing after download: ${MODEL}" >&2
@@ -121,7 +121,9 @@ ensure_model_files() {
     exit 1
   fi
 
-  echo "Model files ready in ${SCRIPT_DIR}."
+  echo "Model files ready."
+  echo "  model:  ${MODEL}"
+  echo "  mmproj: ${MMPROJ_FILE}"
 }
 
 server_load_status() {

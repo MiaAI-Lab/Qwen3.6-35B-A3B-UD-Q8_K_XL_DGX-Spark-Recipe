@@ -1,0 +1,6 @@
+.git
+.cache
+*.gguf
+*.gguf.part
+.llama-server.log
+.llama-server.pid
