@@ -114,6 +114,56 @@ export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ./start.sh
 ```
 
+## Docker Compose
+
+This repo includes a Docker Compose setup that builds a CUDA 13-enabled `llama-server` from `llama.cpp`, mounts this repo into the container, and stores downloaded `.gguf` files in your host Hugging Face cache.
+
+Requirements:
+
+- Docker with Compose v2
+- NVIDIA driver and NVIDIA Container Toolkit configured on the host
+- A GPU/VRAM setup suitable for this model, as described above
+
+Create a local environment file and set your Hugging Face token:
+
+```bash
+cp .env.example .env
+# edit .env and set HF_TOKEN=hf_...
+```
+
+By default, Compose mounts your host Hugging Face cache at `${HOME}/.cache/huggingface` into the container as `/root/.cache/huggingface`. Missing model files are downloaded with `hf download`, so Hugging Face stores them under its normal hub cache layout:
+
+```text
+${HOME}/.cache/huggingface/hub/
+```
+
+To use a different host cache directory, set `HF_CACHE_DIR` in `.env`.
+
+Build and run:
+
+```bash
+docker compose up --build -d
+docker compose logs -f qwen-spark
+```
+
+The first run downloads the model files into the mounted Hugging Face hub cache unless they already exist. `start.sh` uses the snapshot paths returned by `hf download` when launching `llama-server`. The OpenAI-compatible base URL is:
+
+```text
+http://localhost:8888/v1
+```
+
+Stop the server:
+
+```bash
+docker compose down
+```
+
+DGX Spark / GB10 uses CUDA architecture `121`. If you are on a different GPU, set the CUDA architecture before building. For example:
+
+```bash
+CMAKE_CUDA_ARCHITECTURES=90 docker compose build
+```
+
 To skip auto-download and fail fast if files are missing:
 
 ```bash
